@@ -9,6 +9,8 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from .models import CustomUser
 from django.contrib.auth.hashers import make_password
+from django.db.models import F
+
 import json
 
 # Login view
@@ -74,20 +76,23 @@ def reset_password(request, username):
 @login_required
 def add_student(request):
     if request.method == 'POST':
-        name = request.POST.get('name')
-        subject = request.POST.get('subject')
+        name = request.POST.get('name').strip()
+        subject = request.POST.get('subject').strip()
         marks = int(request.POST.get('marks'))
 
-        # Check if student with same name + subject exists
-        existing = Student.objects.filter(name=name, subject=subject).first()
+        # Check for existing student with same name + subject
+        existing = Student.objects.filter(name__iexact=name, subject__iexact=subject).first()
 
         if existing:
+            # Add to existing marks
             existing.marks = F('marks') + marks
             existing.save()
-            messages.success(request, 'Existing student found. Marks updated.')
+            existing.refresh_from_db()  # Refresh to update the instance
+            messages.success(request, f"{existing.name}'s marks updated to {existing.marks}.")
         else:
+            # Create new student
             Student.objects.create(name=name, subject=subject, marks=marks)
-            messages.success(request, 'New student added.')
+            messages.success(request, f"New student '{name}' added successfully.")
 
     return redirect('home')
 
